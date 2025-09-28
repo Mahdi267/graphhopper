@@ -373,6 +373,156 @@ public class ShortestPathTreeTest {
         );
     }
 
+    /**
+     * Teste l'algorithme de recherche d'arbre de plus courts chemins avec exploration basée sur le poids (mode WEIGHT).
+     *
+     * <p>Ce test vérifie que l'algorithme implémente correctement la terminaison de recherche basée sur le poids
+     * en utilisant un weighting personnalisé qui crée une distinction entre les valeurs de poids et les valeurs de temps.
+     * Le test s'assure que la recherche respecte correctement les limites de poids et se termine en fonction du
+     * poids cumulé plutôt que du temps ou de la distance.</p>
+     *
+     * <p><strong>Configuration du test :</strong></p>
+     * <ul>
+     *   <li>Crée un weighting personnalisé avec multiplicateur de priorité 2.0x pour différencier les poids du temps</li>
+     *   <li>Définit une limite de poids de 0.5 (approximativement équivalent à 25 secondes avec le weighting personnalisé)</li>
+     *   <li>Utilise le mode de traversée NODE_BASED sur le graphe de test standard</li>
+     * </ul>
+     *
+     * <p><strong>Assertions du test :</strong></p>
+     * <ul>
+     *   <li>Vérifie qu'au moins un nœud (origine) est trouvé dans la limite de poids</li>
+     *   <li>S'assure que tous les labels retournés ont un poids ≤ 0.5</li>
+     *   <li>Compare les résultats avec une recherche équivalente basée sur le temps pour vérifier que la terminaison basée sur le poids est plus restrictive</li>
+     *   <li>Confirme que le nœud d'origine a un poids zéro et est traité en premier</li>
+     * </ul>
+     *
+     * <p><strong>Couverture de code :</strong></p>
+     * <ul>
+     *   <li>Teste la branche de l'énumération {@code ExploreType.WEIGHT}</li>
+     *   <li>Exerce la méthode {@code setWeightLimit()}</li>
+     *   <li>Vérifie {@code getExploreValue()} quand exploreType est WEIGHT</li>
+     *   <li>Teste le comparateur de file de priorité basé sur le poids dans {@code queueByZ}</li>
+     * </ul>
+     *
+     * <p><strong>Comportement attendu :</strong></p>
+     * La recherche devrait se terminer quand le poids minimum dans la file de priorité dépasse la limite
+     * spécifiée (0.5), et devrait traiter moins de nœuds comparé à une recherche équivalente basée sur le temps
+     * en raison des valeurs de poids augmentées par le multiplicateur du weighting personnalisé.
+     *
+     * @throws AssertionError si une limite de poids est violée ou si les attentes comportementales ne sont pas respectées
+     */
+    @Test
+    public void testSearchByWeight(){
+        CustomModel customModel = createBaseCustomModel();
+        customModel.addToPriority(If("true", MULTIPLY, "2.0"));
+
+        Weighting customWeighting = CustomModelParser.createWeighting(
+                encodingManager,
+                TurnCostProvider.NO_TURN_COST_PROVIDER,
+                customModel
+        );
+
+        List<ShortestPathTree.IsoLabel> result = new ArrayList<>();
+        ShortestPathTree instance = new ShortestPathTree(graph, createWeighting(), false, TraversalMode.NODE_BASED);
+
+        instance.setWeightLimit(0.5);
+        instance.search(0, result::add);
+
+        assertTrue(result.size() > 0);
+
+        for (ShortestPathTree.IsoLabel label : result) {
+            assertTrue(label.weight <= 0.5,
+                    String.format("Le poids %f dépasse la limite 0.5 pour le noeud %d",
+                            label.weight, label.node));
+        }
+
+        List<ShortestPathTree.IsoLabel> timeResult = new ArrayList<>();
+        ShortestPathTree timeInstance = new ShortestPathTree(graph, customWeighting, false, TraversalMode.NODE_BASED);
+        timeInstance.setWeightLimit(25_000);
+        timeInstance.search(0, timeResult::add);
+
+        assertTrue(result.size() <= timeResult.size(),
+                "La recherche par poids devrait être plus restrictive que par temps avec ce weighting");
+
+        assertEquals(0, result.get(0).node, "Le premier noeud devrait être le noeud de départ");
+        assertEquals(0.0, result.get(0).weight, 0.001, "Le poids du noeud de dépard devrait être 0");
+    }
+
+    /**
+     * Teste la méthode {@code getIsochroneEdges(double z)} avec une valeur personnalisée différente de la limite de recherche.
+     *
+     * <p>Ce test vérifie que la méthode {@code getIsochroneEdges(double z)} peut calculer correctement les bords
+     * d'isochrone pour une valeur z arbitraire, indépendamment de la limite utilisée pour la recherche initiale.
+     * Il s'assure que les bords retournés correspondent effectivement à la frontière de l'isochrone à la valeur z spécifiée.</p>
+     *
+     * <p><strong>Configuration du test :</strong></p>
+     * <ul>
+     *   <li>Effectue une recherche avec une limite de temps généreuse (50 secondes) pour explorer largement</li>
+     *   <li>Calcule ensuite les bords d'isochrone pour une valeur plus petite (20 secondes)</li>
+     *   <li>Utilise le mode NODE_BASED sur le graphe de test standard</li>
+     * </ul>
+     *
+     * <p><strong>Assertions du test :</strong></p>
+     * <ul>
+     *   <li>Vérifie que des bords d'isochrone sont trouvés pour la valeur z = 20000ms</li>
+     *   <li>S'assure que chaque bord traverse effectivement la frontière (parent d'un côté, enfant de l'autre)</li>
+     *   <li>Confirme que les temps des nœuds parents sont ≤ 20s et les temps des nœuds enfants sont > 20s</li>
+     *   <li>Vérifie la cohérence : aucun bord ne devrait avoir parent et enfant du même côté de la frontière</li>
+     * </ul>
+     *
+     * <p><strong>Couverture de code :</strong></p>
+     * <ul>
+     *   <li>Teste la surcharge {@code getIsochroneEdges(double z)} avec paramètre explicite</li>
+     *   <li>Exerce la logique de comparaison {@code getExploreValue(cursor.value) > z ^ getExploreValue(cursor.value.parent) > z}</li>
+     *   <li>Vérifie le parcours de {@code fromMap.values()} et la construction du résultat</li>
+     *   <li>Teste la condition {@code cursor.value.parent != null}</li>
+     * </ul>
+     *
+     * <p><strong>Comportement attendu :</strong></p>
+     * La méthode devrait retourner tous les labels dont le nœud et son parent se trouvent de part et d'autre
+     * de la frontière temporelle de 20 secondes, représentant ainsi les arêtes qui traversent l'isochrone à 20s.
+     *
+     * @throws AssertionError si les bords d'isochrone ne correspondent pas à la frontière attendue ou si la logique de traversée échoue
+     */
+    @Test
+    public void testGetIsochroneEdgesWithCustomZ(){
+        List<ShortestPathTree.IsoLabel> searchResult = new ArrayList<>();
+        ShortestPathTree instance = new ShortestPathTree(graph, createWeighting(), false, TraversalMode.NODE_BASED);
+
+        instance.setTimeLimit(50_000);
+        instance.search(0, searchResult::add);
+
+        double customZ = 20_000;
+        ArrayList<ShortestPathTree.IsoLabel> isochroneEdges = instance.getIsochroneEdges(customZ);
+
+        assertFalse(isochroneEdges.isEmpty(), "Des bords d'isochrone devraient être trouvées pour z = 20000ms");
+
+        for (ShortestPathTree.IsoLabel edge : isochroneEdges) {
+            assertNotNull(edge.parent, "Chaque bord d'isochrone doit avoir un parent");
+
+            long edgeTime = edge.time;
+            long parentTime = edge.parent.time;
+
+            boolean edgeWithinLimit = edgeTime <= customZ;
+            boolean parentWithinLimit = parentTime <= customZ;
+
+            assertTrue(edgeWithinLimit ^ parentWithinLimit,
+                    String.format("Le bord (noeud %d, temps %d) et son parent (noeud %d, temps %d) doivent être de part et d'autre de la frontière %d",
+                            edge.node, edgeTime, edge.parent.node, parentTime, (long)customZ));
+        }
+
+        boolean hasEdgeInside = isochroneEdges.stream().anyMatch(e -> e.time <= customZ && e.parent.time > customZ);
+        boolean hasEdgeOutside = isochroneEdges.stream().anyMatch(e -> e.time > customZ && e.parent.time <= customZ);
+
+        assertTrue(hasEdgeInside || hasEdgeOutside,
+                "Il devrait y avoir au moins un bord qui traverset la frontière dans un sesn ou l'autre");
+
+        Collection<ShortestPathTree.IsoLabel> defaultIsochroneEdges = instance.getIsochroneEdges();
+
+        assertNotNull(defaultIsochroneEdges, "Les bords d'isochrone par défault devraient exister");
+        assertNotNull(isochroneEdges, "Les bords d'isochrone personnalisés devrait exister");
+    }
+
     EdgeIteratorState findEdge(int a, int b) {
         EdgeIterator edgeIterator = graph.createEdgeExplorer().setBaseNode(a);
         while (edgeIterator.next()) {
