@@ -251,4 +251,169 @@ public class GHLongLongBTreeTest {
             }
         }
     }
+
+    /**
+     * Teste les comportements aux limites et cas critiques pour détecter les mutants survivants.
+     *
+     * <p>Ce test combine plusieurs scénarios critiques dans un seul test exhaustif pour maximiser
+     * la détection de mutants dans les zones sensibles du code : validation des limites, recherche
+     * binaire, gestion des valeurs de retour, et intégrité après exceptions.</p>
+     *
+     * <p><strong>Configuration du test :</strong></p>
+     * <ul>
+     *   <li>Utilise bytesPerValue=4 pour tester les limites de maxValue</li>
+     *   <li>Teste les insertions aux limites exactes (maxValue, maxValue-1, maxValue+1)</li>
+     *   <li>Vérifie la recherche de clés inexistantes à différentes positions</li>
+     *   <li>Teste les valeurs de retour de put() dans tous les scénarios</li>
+     * </ul>
+     *
+     * <p><strong>Assertions du test :</strong></p>
+     * <ul>
+     *   <li>Validation stricte de maxValue et rejet de valeurs dépassant cette limite</li>
+     *   <li>Vérification des valeurs de retour de put() pour insertions et mises à jour</li>
+     *   <li>Test de recherche binaire avec clés avant, entre et après les clés existantes</li>
+     *   <li>Intégrité de l'arbre après tentative d'insertion invalide</li>
+     *   <li>Cohérence de getSize() dans tous les scénarios</li>
+     * </ul>
+     *
+     * <p><strong>Couverture de code :</strong></p>
+     * <ul>
+     *   <li>Conditions de validation dans put() : {@code if (value > maxValue)}</li>
+     *   <li>Logique de binarySearch avec différentes positions de retour</li>
+     *   <li>Retour de put() : {@code rv.oldValue == null ? emptyValue : toLong(rv.oldValue)}</li>
+     *   <li>Gestion des exceptions et état après exception</li>
+     *   <li>get() sur clés inexistantes avec différents index négatifs</li>
+     * </ul>
+     *
+     * <p><strong>Mutants ciblés :</strong></p>
+     * Ce test détecte spécifiquement les mutants suivants :
+     * <ul>
+     *   <li>Changement de {@code >} en {@code >=} dans la validation maxValue</li>
+     *   <li>Changement de {@code ==} en {@code !=} dans la vérification rv.oldValue</li>
+     *   <li>Mutation des valeurs de retour (emptyValue vs oldValue)</li>
+     *   <li>Off-by-one dans binarySearch (high, low, guess)</li>
+     *   <li>Mutation de size++ en situations spécifiques</li>
+     * </ul>
+     *
+     * @throws AssertionError si un comportement aux limites est incorrect
+     */
+    @Test
+    public void testBoundaryConditionsAndReturnValues() {
+        GHLongLongBTree instance = new GHLongLongBTree(5, 4, -1);
+
+        long maxValue = instance.getMaxValue();
+
+        // Insérer EXACTEMENT à maxValue (devrait réussir)
+        long ret1 = instance.put(100, maxValue);
+        assertEquals(-1L, ret1, "put() devrait retourner emptyValue pour une nouvelle insertion");
+        assertEquals(maxValue, instance.get(100), "get(100) devrait retourner maxValue");
+        assertEquals(1L, instance.getSize(), "La taille devrait être 1");
+
+        // Insérer à maxValue - 1 (devrait réussir)
+        long ret2 = instance.put(200, maxValue - 1);
+        assertEquals(-1L, ret2, "put() devrait retourner emptyValue pour une nouvelle insertion");
+        assertEquals(maxValue - 1, instance.get(200), "get(200) devrait retourner maxValue - 1");
+        assertEquals(2L, instance.getSize(), "La taille devrait être 2");
+
+        // Mettre à jour avec maxValue (devrait retourner l'ancienne valeur)
+        long ret3 = instance.put(200, maxValue);
+        assertEquals(maxValue - 1, ret3, "put() devrait retourner l'ancienne valeur lors d'une mise à jour");
+        assertEquals(maxValue, instance.get(200), "La valeur devrait être mise à jour à maxValue");
+        assertEquals(2L, instance.getSize(), "La taille ne devrait pas changer lors d'une mise à jour");
+
+        // Tenter d'insérer maxValue + 1 (devrait échouer)
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> instance.put(300, maxValue + 1),
+                "put() devrait lever IllegalArgumentException pour value > maxValue");
+        assertTrue(ex.getMessage().contains("exceeded max value"),
+                "Le message d'exception devrait mentionner 'exceeded max value'");
+
+        // Vérifier l'intégrité après exception
+        assertEquals(2L, instance.getSize(),
+                "La taille ne devrait pas changer après une insertion échouée");
+        assertEquals(maxValue, instance.get(100),
+                "Les données existantes ne devraient pas être corrompues");
+        assertEquals(maxValue, instance.get(200),
+                "Les données existantes ne devraient pas être corrompues");
+        assertEquals(-1L, instance.get(300),
+                "La clé 300 ne devrait pas exister après insertion échouée");
+
+        instance.clear();
+        // Insérer des clés espacées : 10, 20, 30, 40, 50
+        for (int i = 1; i <= 5; i++) {
+            long retVal = instance.put(i * 10L, i * 100L);
+            assertEquals(-1L, retVal, "Nouvelle insertion devrait retourner emptyValue");
+        }
+
+        assertEquals(5L, instance.getSize(), "Devrait avoir 5 éléments");
+
+        // Rechercher clé AVANT toutes les autres (< 10)
+        assertEquals(-1L, instance.get(5),
+                "get(5) devrait retourner emptyValue (clé avant toutes les autres)");
+        assertEquals(-1L, instance.get(0),
+                "get(0) devrait retourner emptyValue");
+
+        // Rechercher clés ENTRE les clés existantes
+        assertEquals(-1L, instance.get(15), "get(15) devrait retourner emptyValue (entre 10 et 20)");
+        assertEquals(-1L, instance.get(25), "get(25) devrait retourner emptyValue (entre 20 et 30)");
+        assertEquals(-1L, instance.get(35), "get(35) devrait retourner emptyValue (entre 30 et 40)");
+        assertEquals(-1L, instance.get(45), "get(45) devrait retourner emptyValue (entre 40 et 50)");
+
+        // Rechercher clé APRÈS toutes les autres (> 50)
+        assertEquals(-1L, instance.get(55),
+                "get(55) devrait retourner emptyValue (clé après toutes les autres)");
+        assertEquals(-1L, instance.get(100),
+                "get(100) devrait retourner emptyValue");
+
+        // Vérifier que les clés existantes sont toujours accessibles
+        assertEquals(100L, instance.get(10), "get(10) devrait retourner 100");
+        assertEquals(200L, instance.get(20), "get(20) devrait retourner 200");
+        assertEquals(300L, instance.get(30), "get(30) devrait retourner 300");
+        assertEquals(400L, instance.get(40), "get(40) devrait retourner 400");
+        assertEquals(500L, instance.get(50), "get(50) devrait retourner 500");
+
+        // Insérer une nouvelle clé au début
+        long ret4 = instance.put(5, 50L);
+        assertEquals(-1L, ret4, "Insertion au début devrait retourner emptyValue");
+        assertEquals(6L, instance.getSize(), "La taille devrait être 6");
+
+        // Insérer une nouvelle clé à la fin
+        long ret5 = instance.put(60, 600L);
+        assertEquals(-1L, ret5, "Insertion à la fin devrait retourner emptyValue");
+        assertEquals(7L, instance.getSize(), "La taille devrait être 7");
+
+        // Mettre à jour la première clé
+        long ret6 = instance.put(5, 55L);
+        assertEquals(50L, ret6, "Mise à jour devrait retourner l'ancienne valeur 50");
+        assertEquals(55L, instance.get(5), "La valeur devrait être mise à jour à 55");
+        assertEquals(7L, instance.getSize(), "La taille ne devrait pas changer");
+
+        // Mettre à jour la dernière clé
+        long ret7 = instance.put(60, 666L);
+        assertEquals(600L, ret7, "Mise à jour devrait retourner l'ancienne valeur 600");
+        assertEquals(666L, instance.get(60), "La valeur devrait être mise à jour à 666");
+        assertEquals(7L, instance.getSize(), "La taille ne devrait pas changer");
+
+        // Mettre à jour une clé au milieu
+        long ret8 = instance.put(30, 333L);
+        assertEquals(300L, ret8, "Mise à jour devrait retourner l'ancienne valeur 300");
+        assertEquals(333L, instance.get(30), "La valeur devrait être mise à jour à 333");
+        assertEquals(7L, instance.getSize(), "La taille ne devrait pas changer");
+
+        // Vérifier toutes les valeurs finales
+        assertEquals(55L, instance.get(5));
+        assertEquals(100L, instance.get(10));
+        assertEquals(200L, instance.get(20));
+        assertEquals(333L, instance.get(30));
+        assertEquals(400L, instance.get(40));
+        assertEquals(500L, instance.get(50));
+        assertEquals(666L, instance.get(60));
+
+        // Vérifier que les clés inexistantes retournent toujours emptyValue
+        assertEquals(-1L, instance.get(0));
+        assertEquals(-1L, instance.get(15));
+        assertEquals(-1L, instance.get(70));
+
+        assertEquals(7L, instance.getSize(), "La taille finale devrait être 7");
+    }
 }
