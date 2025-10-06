@@ -416,4 +416,66 @@ public class GHLongLongBTreeTest {
 
         assertEquals(7L, instance.getSize(), "La taille finale devrait être 7");
     }
+
+
+        /**
+     * Vérifie que la réduction du paramètre bytesPerValue diminue réellement
+     * l'utilisation mémoire sans altérer la précision des données stockées.
+     *
+     * <p><strong>Intention du test :</strong></p>
+     * Ce test démontre que GHLongLongBTree compresse efficacement les valeurs
+     * lorsqu'on réduit bytesPerValue (1 à 8 octets), ce qui valide la logique
+     * d'économie de mémoire via la conversion long↔byte[]. Il compare plusieurs
+     * configurations tout en confirmant que les valeurs stockées restent exactes.
+     *
+     * <p><strong>Mutants ciblés :</strong></p>
+     * <ul>
+     *   <li>Modifications dans les décalages binaires de fromLong()/toLong()</li>
+     *   <li>Inversions de signe ou perte de précision dans la conversion</li>
+     *   <li>Suppression de la logique de calcul de capacité mémoire</li>
+     * </ul>
+     */
+    @Test
+    public void testMemoryEfficiencyWithDifferentBytesPerValue() {
+        // Même ensemble de données
+        int numEntries = 1000;
+        long[] keys = new long[numEntries];
+        long[] values = new long[numEntries];
+        for (int i = 0; i < numEntries; i++) {
+            keys[i] = i;
+            values[i] = i * 100L;
+        }
+
+        // Arbre 1 : 8 octets par valeur
+        GHLongLongBTree tree8 = new GHLongLongBTree(5, 8, -1);
+        for (int i = 0; i < numEntries; i++) tree8.put(keys[i], values[i]);
+        int mem8 = tree8.getMemoryUsage();
+
+        // Arbre 2 : 4 octets par valeur
+        GHLongLongBTree tree4 = new GHLongLongBTree(5, 4, -1);
+        for (int i = 0; i < numEntries; i++) tree4.put(keys[i], values[i]);
+        int mem4 = tree4.getMemoryUsage();
+
+        // Arbre 3 : 2 octets par valeur (perte possible mais test de taille)
+        GHLongLongBTree tree2 = new GHLongLongBTree(5, 2, -1);
+        for (int i = 0; i < numEntries; i++) tree2.put(keys[i], values[i] % Short.MAX_VALUE);
+        int mem2 = tree2.getMemoryUsage();
+
+        // Vérifier que la mémoire diminue avec moins d’octets
+        assertTrue(mem4 < mem8, "4 bytes per value should use less memory than 8 bytes");
+        assertTrue(mem2 < mem4, "2 bytes per value should use less memory than 4 bytes");
+
+        // Vérifier la cohérence des valeurs stockées
+        for (int i = 0; i < numEntries; i++) {
+            assertEquals(values[i], tree8.get(keys[i]));
+            assertEquals(values[i], tree4.get(keys[i]));
+        }
+
+        // Le tree2 a des valeurs tronquées, on vérifie seulement la cohérence relative
+        for (int i = 0; i < numEntries; i++) {
+            long expected = values[i] % Short.MAX_VALUE;
+            assertEquals(expected, tree2.get(keys[i]));
+        }
+    }
+
 }
