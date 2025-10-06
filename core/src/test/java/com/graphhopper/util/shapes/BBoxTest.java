@@ -136,4 +136,32 @@ public class BBoxTest {
     public void testParseBBoxString() {
         assertEquals(new BBox(2, 4, 1, 3), BBox.parseBBoxString("2,4,1,3"));
     }
+    /**
+     * @author Walid Bouhazza
+     */
+    @Test
+    public void testInvalidBBox() {
+        // minLon > maxLon et minLat > maxLat => bbox incohérente
+        BBox invalid = new BBox(10, -10, 5, -5);
+
+        // Intention : isValid() doit détecter que la bbox n'est pas réaliste
+        assertFalse(invalid.isValid());
+    }
+    @Test
+    public void testUpdateWithRandomCoordinates_Faker () {
+        Faker faker = new Faker();
+        // Point initial
+        double lat1 = faker.number().randomDouble(6, -90, 90);
+        double lon1 = faker.number().randomDouble(6, -180, 180);
+        BBox bbox = new BBox(lon1, lon1, lat1, lat1);
+
+        // Nouveau point aléatoire
+        double lat2 = faker.number().randomDouble(6, -90, 90);
+        double lon2 = faker.number().randomDouble(6, -180, 180);
+        bbox.update(lat2, lon2);
+
+        // Intention : après update, la bbox doit contenir les deux points
+        assertTrue(bbox.contains(lat1, lon1));
+        assertTrue(bbox.contains(lat2, lon2));
+    }
 }
