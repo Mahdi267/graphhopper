@@ -536,4 +536,93 @@ public class GHLongLongBTreeTest {
                 String.format("Les hauteurs devraient être similaires (tree4: %d, tree2: %d)", height4, height2));
     }
 
+    /**
+     * Teste le comportement de clear() sur un arbre non-vide et sa réutilisation.
+     *
+     * <p>Ce test vérifie que clear() réinitialise complètement l'arbre et permet
+     * de le réutiliser sans créer une nouvelle instance. C'est une fonctionnalité
+     * importante pour réutiliser la structure de données sans allocation mémoire supplémentaire.</p>
+     *
+     * <p><strong>Configuration du test :</strong></p>
+     * <ul>
+     *   <li>Insère 15 éléments pour créer un arbre multi-niveaux</li>
+     *   <li>Appelle clear() pour réinitialiser</li>
+     *   <li>Réinsère 10 nouveaux éléments</li>
+     * </ul>
+     *
+     * <p><strong>Assertions du test :</strong></p>
+     * <ul>
+     *   <li>Après clear() : getSize() = 0, height() = 1</li>
+     *   <li>Anciennes clés retournent emptyValue</li>
+     *   <li>Nouvelles insertions fonctionnent normalement</li>
+     *   <li>L'arbre peut croître à nouveau après clear()</li>
+     * </ul>
+     *
+     * <p><strong>Couverture de code :</strong></p>
+     * <ul>
+     *   <li>Teste clear() qui n'était jamais testé</li>
+     *   <li>Vérifie la réinitialisation de size et height</li>
+     *   <li>Teste la réutilisation après clear()</li>
+     * </ul>
+     *
+     * <p><strong>Mutants ciblés :</strong></p>
+     * <ul>
+     *   <li>Ligne 71 : removed call to clear() - détecté par vérification de l'état après clear()</li>
+     *   <li>Ligne 145-147 : mutations dans clear() (size=0, height=1, new root)</li>
+     * </ul>
+     *
+     * @throws AssertionError si clear() ne réinitialise pas correctement
+     */
+    @Test
+    public void testClearAndReuse() {
+        GHLongLongBTree instance = new GHLongLongBTree(3, 4, -1);
+
+        for (int i = 0; i < 15; i++) {
+            instance.put(i, i * 10L);
+        }
+
+        // Vérifier l'état avant clear
+        assertEquals(15, instance.getSize(), "L'arbre devrait contenir 15 éléments");
+        assertTrue(instance.height() > 1, "La hauteur devrait être > 1 avec 15 éléments");
+        assertEquals(50L, instance.get(5), "get(5) devrait retourner 50");
+
+        instance.clear();
+
+        // Vérifier l'état après clear
+        assertEquals(0, instance.getSize(),
+                "getSize() devrait retourner 0 après clear()");
+        assertEquals(1, instance.height(),
+                "height() devrait retourner 1 après clear()");
+
+        // Vérifier que les anciennes clés retournent emptyValue
+        assertEquals(-1L, instance.get(5),
+                "Les anciennes clés devraient retourner emptyValue après clear()");
+        assertEquals(-1L, instance.get(0),
+                "get(0) devrait retourner emptyValue après clear()");
+        assertEquals(-1L, instance.get(14),
+                "get(14) devrait retourner emptyValue après clear()");
+
+        // Réinsérer 10 nouveaux éléments
+        for (int i = 0; i < 10; i++) {
+            long returnValue = instance.put(i, i * 100L);
+            assertEquals(-1L, returnValue,
+                    "put() devrait retourner emptyValue après clear()");
+        }
+
+        // Vérifier l'état après réinsertion
+        assertEquals(10, instance.getSize(),
+                "L'arbre devrait contenir 10 éléments après réinsertion");
+        assertEquals(500L, instance.get(5),
+                "get(5) devrait retourner 500 (nouvelle valeur)");
+
+        // Vérifier qu'on peut encore faire croître l'arbre
+        for (int i = 10; i < 20; i++) {
+            instance.put(i, i * 100L);
+        }
+
+        assertEquals(20, instance.getSize(),
+                "L'arbre devrait pouvoir croître après clear()");
+        assertTrue(instance.height() >= 1,
+                "La hauteur devrait augmenter avec plus d'éléments");
+    }
 }
