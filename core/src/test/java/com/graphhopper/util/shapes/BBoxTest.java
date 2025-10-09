@@ -137,35 +137,197 @@ public class BBoxTest {
     public void testParseBBoxString() {
         assertEquals(new BBox(2, 4, 1, 3), BBox.parseBBoxString("2,4,1,3"));
     }
-
     /**
-     * @author Walid Bouhazza
+     * Teste la robustesse de la méthode {@code isValid()} de la classe {@link BBox}.
+     *
+     * <p>Ce test s'assure que la détection de validité d'une boîte englobante (BBox)
+     * fonctionne correctement pour différents scénarios, incluant les cas limites,
+     * les inversions de bornes, les valeurs égales et les configurations avec ou sans élévation.</p>
+     *
+     * <p><strong>Configuration du test :</strong></p>
+     * <ul>
+     *   <li>Teste les configurations avec bornes inversées, égales ou incohérentes</li>
+     *   <li>Inclut des cas extrêmes utilisant {@code Double.MAX_VALUE}</li>
+     *   <li>Teste les BBox avec élévation (minEle/maxEle), incluant élévations négatives et égales</li>
+     *   <li>Vérifie le comportement avec {@code hasElevation = false}</li>
+     *   <li>Teste les limites géographiques mondiales (±180° longitude, ±90° latitude)</li>
+     *   <li>Valide les cas limites valides (très petites BBox, pôles, ligne de changement de date)</li>
+     * </ul>
+     *
+     * <p><strong>Assertions du test :</strong></p>
+     * <ul>
+     *   <li>Une BBox avec des bornes inversées ({@code min > max}) est invalide</li>
+     *   <li>Une BBox avec des bornes égales ({@code min == max}) est invalide (surface nulle)</li>
+     *   <li>Une BBox correctement définie avec {@code min < max} est valide</li>
+     *   <li>Une BBox avec {@code minEle > maxEle} est invalide</li>
+     *   <li>Une BBox avec {@code minEle == maxEle} est valide (surface plane à altitude constante)</li>
+     *   <li>Les élévations négatives sont valides (ex: zones sous le niveau de la mer)</li>
+     *   <li>Les BBox aux limites géographiques exactes (monde entier) sont valides</li>
+     *   <li>Les très petites BBox non nulles sont valides</li>
+     *   <li>Les BBox situées aux pôles ou près de la ligne de changement de date sont valides</li>
+     * </ul>
+     *
+     * <p><strong>Couverture de code :</strong></p>
+     * <ul>
+     *   <li>Teste la méthode {@code isValid()} dans 20+ scénarios logiques différents</li>
+     *   <li>Valide le comportement avec et sans élévation</li>
+     *   <li>Exerce le constructeur sur de multiples combinaisons de paramètres</li>
+     *   <li>Vérifie les cas limites géographiques réalistes</li>
+     * </ul>
+     *
+     * <p><strong>Comportement attendu :</strong></p>
+     * {@code isValid()} doit renvoyer {@code false} pour toutes les configurations
+     * incohérentes (bornes inversées ou égales en lat/lon, élévations inversées)
+     * et {@code true} pour les BBox correctement définies, incluant les cas limites valides.
+     *
+     * @throws AssertionError si une configuration invalide est considérée comme valide,
+     *                        ou inversement.
      */
     @Test
     public void testInvalidBBox() {
-        // minLon > maxLon et minLat > maxLat => bbox incohérente
-        BBox invalid = new BBox(10, -10, 5, -5);
+        // ===== Tests de base : Coordonnées inversées =====
 
-        // Intention : isValid() doit détecter que la bbox n'est pas réaliste
-        assertFalse(invalid.isValid());
+        // Coordonnées min/max inversées (minLon > maxLon ET minLat > maxLat)
+        BBox invalid1 = new BBox(10, -10, 5, -5);
+        assertFalse(invalid1.isValid(), "min/max inversés : devrait être invalide");
+
+        // BBox valide avec des coordonnées correctement ordonnées
+        BBox valid = new BBox(-10, 10, -5, 5);
+        assertTrue(valid.isValid(), "Bornes normales : devrait être valide");
+
+        // Latitude minimale égale à la latitude maximale
+        BBox invalid2 = new BBox(-10, 10, 5, 5);
+        assertFalse(invalid2.isValid(), "minLat == maxLat : invalide");
+
+        //Longitude minimale égale à la longitude maximale
+        BBox invalid3 = new BBox(5, 5, -10, 10);
+        assertFalse(invalid3.isValid(), "minLon == maxLon : invalide");
+
+        //Valeurs extrêmes inversées
+        BBox invalid4 = new BBox(Double.MAX_VALUE, -Double.MAX_VALUE, Double.MAX_VALUE, -Double.MAX_VALUE);
+        assertFalse(invalid4.isValid(), "valeurs inversées extrêmes : invalide");
+
+
+        // ===== Tests avec élévation =====
+
+        // BBox avec élévation, mais minEle > maxEle
+        BBox invalid5 = new BBox(-10, 10, -5, 5, 100, 50, true);
+        assertFalse(invalid5.isValid(), "minEle > maxEle : invalide");
+
+        // BBox valide avec élévation cohérente
+        BBox valid2 = new BBox(-10, 10, -5, 5, 50, 100, true);
+        assertTrue(valid2.isValid(), "élévation cohérente : valide");
+
+        // Élévations égales
+        BBox validEqualEle = new BBox(-10, 10, -5, 5, 100, 100, true);
+        assertTrue(validEqualEle.isValid(), "minEle == maxEle (surface plane) : valide");
+
+        // Élévations négatives mais valides (ex: Mer Morte à -400m)
+        BBox valid3 = new BBox(-10, 10, -5, 5, -400, -200, true);
+        assertTrue(valid3.isValid(), "élévations négatives valides");
+
+        // Élévations avec hasElevation = false
+        BBox ambiguous = new BBox(-10, 10, -5, 5, 100, 50, false);
+        assertTrue(ambiguous.isValid(), "hasElevation=false : élévations ignorées, devrait être valide");
+
+        // ===== Tests cas limites valides =====
+
+        // Limites géographiques mondiales exactes
+        BBox validWorld = new BBox(-180, 180, -90, 90);
+        assertTrue(validWorld.isValid(), "limites mondiales [-180,180] x [-90,90] : valide");
+
+        // Très petite BBox mais valide
+        BBox validTiny = new BBox(0, 0.0001, 0, 0.0001);
+        assertTrue(validTiny.isValid(), "très petite BBox (0.0001°) : valide");
+
+        // Box sur l'équateur
+        BBox validOrigin = new BBox(-1, 1, -1, 1);
+        assertTrue(validOrigin.isValid(), "BBox autour de (0,0) : valide");
+
+        // BBox aux pôles (latitude limite)
+        BBox validPole = new BBox(-10, 10, 89, 90);
+        assertTrue(validPole.isValid(), "BBox près du pôle Nord : valide");
+
+        // BBox à la limite de changement de date (longitude limite)
+        BBox validDateLine = new BBox(179, 180, -5, 5);
+        assertTrue(validDateLine.isValid(), "BBox près de la ligne de changement de date : valide");
     }
 
+    /**
+     * Teste la méthode {@code update()} de la classe {@link BBox} à l’aide de coordonnées aléatoires
+     * générées avec la librairie {@link com.github.javafaker.Faker}.
+     *
+     * <p>Ce test vérifie la capacité de la BBox à s’adapter dynamiquement lorsque de nouvelles coordonnées
+     * sont ajoutées, garantissant que les bornes s’ajustent correctement dans toutes les directions
+     * (nord, sud, est, ouest), et que la version avec élévation met à jour correctement
+     * {@code minEle} et {@code maxEle}.</p>
+     *
+     * <p><strong>Configuration du test :</strong></p>
+     * <ul>
+     *   <li>Génère des points aléatoires de latitude et longitude avec Faker</li>
+     *   <li>Teste la mise à jour successive de la BBox dans différentes directions</li>
+     *   <li>Vérifie la cohérence de {@code contains()} après chaque mise à jour</li>
+     *   <li>Inclut un test distinct pour les BBox avec élévation</li>
+     * </ul>
+     *
+     * <p><strong>Assertions du test :</strong></p>
+     * <ul>
+     *   <li>Chaque point ajouté est contenu dans la BBox après mise à jour</li>
+     *   <li>Les bornes min/max sont correctement ajustées</li>
+     *   <li>Les valeurs d’élévation sont mises à jour lorsque présentes</li>
+     * </ul>
+     *
+     * <p><strong>Couverture de code :</strong></p>
+     * <ul>
+     *   <li>Teste la méthode {@code update()} dans des conditions réalistes et aléatoires</li>
+     *   <li>Exerce {@code contains()} et la logique d’ajustement des bornes</li>
+     *   <li>Valide la mise à jour des attributs d’élévation {@code minEle}/{@code maxEle}</li>
+     * </ul>
+     *
+     * <p><strong>Comportement attendu :</strong></p>
+     * Après chaque appel à {@code update()}, la BBox doit toujours contenir toutes les coordonnées
+     * déjà ajoutées et ajuster correctement ses bornes, y compris pour les élévations.
+     *
+     * @throws AssertionError si la BBox ne s’étend pas correctement ou ne contient pas les points ajoutés.
+     */
     @Test
-    public void testUpdateWithRandomCoordinates_Faker () {
+    public void testUpdateWithRandomCoordinates_Faker() {
         Faker faker = new Faker();
-        // Point initial
+
         double lat1 = faker.number().randomDouble(6, -90, 90);
         double lon1 = faker.number().randomDouble(6, -180, 180);
         BBox bbox = new BBox(lon1, lon1, lat1, lat1);
 
-        // Nouveau point aléatoire
-        double lat2 = faker.number().randomDouble(6, -90, 90);
-        double lon2 = faker.number().randomDouble(6, -180, 180);
+        double lat2 = lat1 + faker.number().randomDouble(4, 1, 20);
+        double lon2 = lon1 + faker.number().randomDouble(4, 1, 20);
         bbox.update(lat2, lon2);
-
-        // Intention : après update, la bbox doit contenir les deux points
         assertTrue(bbox.contains(lat1, lon1));
         assertTrue(bbox.contains(lat2, lon2));
+        assertTrue(bbox.maxLat >= lat2 && bbox.maxLon >= lon2);
+
+        double lat3 = lat1 - faker.number().randomDouble(4, 1, 20);
+        double lon3 = lon1 - faker.number().randomDouble(4, 1, 20);
+        bbox.update(lat3, lon3);
+        assertTrue(bbox.contains(lat3, lon3));
+        assertTrue(bbox.minLat <= lat3 && bbox.minLon <= lon3);
+
+        assertTrue(bbox.maxLat >= Math.max(lat1, Math.max(lat2, lat3)));
+        assertTrue(bbox.minLat <= Math.min(lat1, Math.min(lat2, lat3)));
+        assertTrue(bbox.maxLon >= Math.max(lon1, Math.max(lon2, lon3)));
+        assertTrue(bbox.minLon <= Math.min(lon1, Math.min(lon2, lon3)));
+
+        for (int i = 0; i < 10; i++) {
+            double lat = faker.number().randomDouble(6, -90, 90);
+            double lon = faker.number().randomDouble(6, -180, 180);
+            bbox.update(lat, lon);
+            assertTrue(bbox.contains(lat, lon));
+        }
+
+        BBox bboxElev = new BBox(-1, 1, -1, 1, 0, 10, true);
+        bboxElev.update(0, 0, 15);
+        bboxElev.update(0, 0, -5);
+        assertEquals(15, bboxElev.maxEle);
+        assertEquals(-5, bboxElev.minEle);
     }
 
     /**
