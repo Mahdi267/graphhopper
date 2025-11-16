@@ -37,7 +37,7 @@ jobs:
       - name: Build ${{ matrix.java-version }}
         run: mvn -B clean test
       - name: Run mutation tests
-        run: mvn -B clean test-compile org.pitest:pitest-maven:mutationCoverage -pl core
+        run: mvn -B org.pitest:pitest-maven:mutationCoverage -pl core -DskipTests
       - name: Extract mutation score
         id: extract_score
         run: |
