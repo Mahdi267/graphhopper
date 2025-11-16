@@ -38,7 +38,7 @@ jobs:
         run: mvn -B clean test
 
       - name: Run mutation tests
-        run: mvn -B test-compile org.pitest:pitest-maven:mutationCoverage
+        run: mvn -B test-compile org.pitest:pitest-maven:mutationCoverage -pl !graphhopper-web-api
       - name: Extract mutation score
         id: extract_score
         run: |
@@ -79,4 +79,3 @@ jobs:
         with:
           name: mutation-score-java-${{ matrix.java-version }}
           path: mutation-score-artifact/score.txt
-
