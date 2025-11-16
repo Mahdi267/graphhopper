@@ -43,6 +43,7 @@ import com.graphhopper.util.details.PathDetail;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import static org.mockito.Mockito.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -50,6 +51,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.*;
 
 import static com.graphhopper.routing.util.TransportationMode.CAR;
 import static com.graphhopper.util.GHUtility.readCountries;
@@ -989,6 +991,59 @@ public class OSMReaderTest {
         assertEquals("B8, B12", OSMReader.fixWayName("B8;B12"));
         assertEquals("B8, B12", OSMReader.fixWayName("B8; B12"));
     }
+
+    /**
+     * Test unitaire pour acceptWay() de OSMReader.
+     *
+     * Vérifie que OSMReader accepte correctement une route (way) valide du fichier OpenStreetMap.
+     * Une way est acceptée si elle a au minimum 2 nœuds, au moins 1 tag, et est validée par OSMParsers.
+     *
+     * <p><b>Mocks utilisés :</b>
+     * <ul>
+     *   <li><b>BaseGraph</b> : Mock de la base de données du graphe routier. Fournit une instance
+     *       fictive sans créer de vraie base de données (coûteux en ressources). Configuré pour
+     *       retourner null pour getTurnCostStorage() (juste nécessaire pour le constructeur).</li>
+     *   <li><b>OSMParsers</b> : Mock du parseur OSM qui valide les tags. Configuré pour retourner
+     *       true pour acceptWay(), simulant l'acceptation d'une route valide par les règles de routage.</li>
+     * </ul>
+     *
+     *
+     * <p><b>Résultat attendu :</b> acceptWay() retourne true pour une way avec 2+ nœuds,
+     * au moins 1 tag, et acceptée par OSMParsers.
+     *
+     * @author Walid Bouhazza
+     * @matricule 20280620
+     */
+    @Test
+    public void testAcceptWayWithValidWay() {
+
+        // Mock 1 : BaseGraph
+        BaseGraph mockGraph = mock(BaseGraph.class);
+        when(mockGraph.getTurnCostStorage()).thenReturn(null);  // Juste pour passer le constructeur
+
+        // Mock 2 : OSMParsers
+        OSMParsers mockParsers = mock(OSMParsers.class);
+        when(mockParsers.createRelationFlags()).thenReturn(new IntsRef(2));
+        when(mockParsers.acceptWay(any())).thenReturn(true);
+
+        // Config
+        OSMReaderConfig config = new OSMReaderConfig();
+
+        // Créer OSMReader
+        OSMReader reader = new OSMReader(mockGraph, mockParsers, config);
+
+        // Données de test
+        ReaderWay testWay = new ReaderWay(1);
+        testWay.setTag("highway", "primary");
+        testWay.getNodes().add(10);
+        testWay.getNodes().add(20);
+
+        boolean result = reader.acceptWay(testWay);
+
+        // Assert
+        assertTrue(result);
+    }
+
 
     private AreaIndex<CustomArea> createCountryIndex() {
         return new AreaIndex<>(readCountries());
