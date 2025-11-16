@@ -37,7 +37,7 @@ jobs:
       - name: Build ${{ matrix.java-version }}
         run: mvn -B clean test
       - name: Run mutation tests
-        run: mvn -B -f graphhopper-core/pom.xml test-compile org.pitest:pitest-maven:mutationCoverage
+        run: mvn -B -pl core test-compile org.pitest:pitest-maven:mutationCoverage
       - name: Extract mutation score
         id: extract_score
         run: |
