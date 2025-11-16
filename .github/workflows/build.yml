@@ -36,9 +36,8 @@ jobs:
             ${{ runner.os}}-node_modules-
       - name: Build ${{ matrix.java-version }}
         run: mvn -B clean test
-
       - name: Run mutation tests
-        run: mvn -B test-compile org.pitest:pitest-maven:mutationCoverage -pl !graphhopper-web-api
+        run: mvn -B test-compile org.pitest:pitest-maven:mutationCoverage --projects !graphhopper-web-api,!graphhopper-web
       - name: Extract mutation score
         id: extract_score
         run: |
