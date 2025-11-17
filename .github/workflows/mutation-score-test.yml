@@ -15,23 +15,37 @@ jobs:
           distribution: temurin
       - name: Build project
         run: mvn -Dkey=$API_KEY clean install -B
-      - name: Run mutation tests
+      - name: Run mutation tests on core repository
         run: mvn -B org.pitest:pitest-maven:mutationCoverage -DskipTests || true
+        working-directory: ./core
       - name: Extract mutation score
         id: extract_score
         run: |
-          echo "=== Checking for PiTest reports ==="
-          ls -la target/pit-reports/ 2>/dev/null || echo "No pit-reports directory"
+          echo "=== Checking for PiTest reports in core repository ==="
+          find ./core/target -name "index.html" -path "*/pit-reports/*" 2>/dev/null || echo "No pit-reports found"
           
-          echo "=== Attempting to extract score ==="
-          SCORE=$(mvn org.pitest:pitest-maven:report -q -DskipTests 2>/dev/null | grep -oP 'Killed \K[0-9]+(?=/[0-9]+)' | head -1)
+          echo "=== Extracting mutation score ==="
+          SCORE=""
           
-          if [ -z "$SCORE" ]; then
-            echo "=== Trying HTML report ==="
-            SCORE=$(cat target/pit-reports/index.html 2>/dev/null | grep -oP 'Line Coverage: \K[0-9.]+' | head -1)
+          # Try mutations.xml first (most reliable)
+          if [ -f ./core/target/pit-reports/mutations.xml ]; then
+            SCORE=$(grep -oP 'percentage="\K[^"]+' ./core/target/pit-reports/mutations.xml | head -1)
+            echo "Extracted from mutations.xml: $SCORE%"
           fi
           
-          echo "Final score: $SCORE"
+          # Fallback to HTML if XML didn't work
+          if [ -z "$SCORE" ] && [ -f ./core/target/pit-reports/index.html ]; then
+            echo "Trying HTML report..."
+            SCORE=$(grep -oP '>\d+\.\d+%<' ./core/target/pit-reports/index.html | grep -oP '\d+\.\d+' | head -1)
+            echo "Extracted from HTML: $SCORE%"
+          fi
+          
+          if [ -z "$SCORE" ]; then
+            echo "WARNING: Could not extract mutation score from any report"
+            SCORE="0"
+          fi
+          
+          echo "Final mutation score: $SCORE"
           echo "mutation_score=$SCORE" >> $GITHUB_OUTPUT
       - name: Download previous mutation score
         id: download_score
