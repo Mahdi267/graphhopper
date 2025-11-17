@@ -1,5 +1,9 @@
 name: Mutation Tests
-on: push
+on:
+  workflow_run:
+    workflows: ["Build and Test"]
+    types:
+      - completed
 jobs:
   mutation-tests:
     runs-on: ubuntu-latest
