@@ -1,9 +1,5 @@
 name: Mutation Tests
-on:
-  workflow_run:
-    workflows: ["Build and Test"]
-    types:
-      - completed
+on: push
 jobs:
   mutation-tests:
     runs-on: ubuntu-latest
@@ -17,6 +13,8 @@ jobs:
         with:
           java-version: ${{ matrix.java-version }}
           distribution: temurin
+      - name: Build project
+        run: mvn -Dkey=$API_KEY clean install -B
       - name: Run mutation tests
         run: mvn -B org.pitest:pitest-maven:mutationCoverage -DskipTests || true
       - name: Extract mutation score
