@@ -20,10 +20,18 @@ jobs:
       - name: Extract mutation score
         id: extract_score
         run: |
+          echo "=== Checking for PiTest reports ==="
+          ls -la target/pit-reports/ 2>/dev/null || echo "No pit-reports directory"
+          
+          echo "=== Attempting to extract score ==="
           SCORE=$(mvn org.pitest:pitest-maven:report -q -DskipTests 2>/dev/null | grep -oP 'Killed \K[0-9]+(?=/[0-9]+)' | head -1)
+          
           if [ -z "$SCORE" ]; then
-            SCORE=$(cat target/pit-reports/index.html | grep -oP 'Line Coverage: \K[0-9.]+' | head -1)
+            echo "=== Trying HTML report ==="
+            SCORE=$(cat target/pit-reports/index.html 2>/dev/null | grep -oP 'Line Coverage: \K[0-9.]+' | head -1)
           fi
+          
+          echo "Final score: $SCORE"
           echo "mutation_score=$SCORE" >> $GITHUB_OUTPUT
       - name: Download previous mutation score
         id: download_score
