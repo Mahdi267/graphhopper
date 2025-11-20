@@ -10,44 +10,44 @@ jobs:
         java-version: [ 24, 25-ea ]
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java-version }}
           distribution: temurin
+      
       - name: Build project
         run: mvn -Dkey=$API_KEY clean install -B
+      
       - name: Run mutation tests on core repository
         run: mvn -B org.pitest:pitest-maven:mutationCoverage -DskipTests || true
         working-directory: ./core
+      
       - name: Extract mutation score
         id: extract_score
         run: |
-          echo "=== Checking for PiTest reports in core repository ==="
-          find ./core/target -name "index.html" -path "*/pit-reports/*" 2>/dev/null || echo "No pit-reports found"
+          cd ./core/target/pit-reports
           
-          echo "=== Extracting mutation score ==="
-          SCORE=""
+          # Afficher le contenu pour debug
+          echo "Files:"
+          ls -la
+          echo "XML content (first 30 lines):"
+          head -30 mutations.xml
           
-          # Try mutations.xml first (most reliable)
-          if [ -f ./core/target/pit-reports/mutations.xml ]; then
-            SCORE=$(grep -oP 'percentage="\K[^"]+' ./core/target/pit-reports/mutations.xml | head -1)
-            echo "Extracted from mutations.xml: $SCORE%"
-          fi
+          # Calculer le score
+          TOTAL=$(grep -c '<mutation' mutations.xml)
+          KILLED=$(grep -c "status='KILLED'" mutations.xml)
+          SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
           
-          # Fallback to HTML if XML didn't work
-          if [ -z "$SCORE" ] && [ -f ./core/target/pit-reports/index.html ]; then
-            echo "Trying HTML report..."
-            SCORE=$(grep -oP '>\d+\.\d+%<' ./core/target/pit-reports/index.html | grep -oP '\d+\.\d+' | head -1)
-            echo "Extracted from HTML: $SCORE%"
-          fi
-          
-          if [ -z "$SCORE" ]; then
-            echo "WARNING: Could not extract mutation score from any report"
-            SCORE="0"
-          fi
-          
-          echo "Final mutation score: $SCORE"
+          echo "Score: $SCORE%"
           echo "mutation_score=$SCORE" >> $GITHUB_OUTPUT
+      
+      - name: Upload reports for debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: pit-reports-java-${{ matrix.java-version }}
+          path: ./core/target/pit-reports/
+      
       - name: Download previous mutation score
         id: download_score
         uses: actions/download-artifact@v4
@@ -55,6 +55,7 @@ jobs:
           name: mutation-score-java-${{ matrix.java-version }}
           path: previous-score
         continue-on-error: true
+      
       - name: Compare mutation scores
         run: |
           CURRENT_SCORE="${{ steps.extract_score.outputs.mutation_score }}"
@@ -71,10 +72,12 @@ jobs:
           else
             echo "No previous score found, storing current score"
           fi
+      
       - name: Save mutation score
         run: |
           mkdir -p mutation-score-artifact
           echo "${{ steps.extract_score.outputs.mutation_score }}" > mutation-score-artifact/score.txt
+      
       - name: Upload mutation score artifact
         uses: actions/upload-artifact@v4
         with:
