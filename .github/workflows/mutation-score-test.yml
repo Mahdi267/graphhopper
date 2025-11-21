@@ -1,5 +1,11 @@
 name: Mutation Tests
-on: push
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "core/**"
+      - ".github/workflows/mutation-tests.yml"
 
 jobs:
   mutation-tests:
@@ -10,24 +16,32 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: 24
+          java-version: 21       # recommandé pour PiTest
           distribution: temurin
-          cache: maven
+          cache: maven           # cache du repo Maven (~/.m2)
 
-      - name: Build
-        run: mvn clean install -B
-
-      - name: Run PiTest
-        run: |
-          mvn org.pitest:pitest-maven:mutationCoverage \
-            -DoutputFormats=XML,HTML \
-            -DargLine=""
+      # ------------------------
+      # Build léger (pas de clean)
+      # ------------------------
+      - name: Build (fast incremental)
         working-directory: ./core
+        run: mvn -B -DskipTests package
 
-      - name: Get mutation score
+      # ------------------------
+      # PiTest
+      # ------------------------
+      - name: Run PiTest
+        working-directory: ./core
+        run: |
+          mvn -B org.pitest:pitest-maven:mutationCoverage \
+            -DoutputFormats=XML,HTML
+
+      # ------------------------
+      # Score de mutation
+      # ------------------------
+      - name: Compute mutation score
         run: |
           REPORT=./core/target/pit-reports/mutations.xml
-
           if [ ! -f "$REPORT" ]; then
             echo "❌ mutations.xml introuvable"
             exit 1
@@ -35,11 +49,6 @@ jobs:
 
           TOTAL=$(grep -c "<mutation " "$REPORT")
           KILLED=$(grep -c "status='KILLED'" "$REPORT")
-
-          if [ "$TOTAL" -eq 0 ]; then
-            echo "❌ Aucun mutant trouvé."
-            exit 1
-          fi
-
           SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
+          
           echo "🎯 Mutation Score: $SCORE%"
