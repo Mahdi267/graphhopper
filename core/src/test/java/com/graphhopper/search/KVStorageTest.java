@@ -15,6 +15,10 @@ import static com.graphhopper.search.KVStorage.cutString;
 import static com.graphhopper.util.Helper.UTF_CS;
 import static org.junit.jupiter.api.Assertions.*;
 
+import com.graphhopper.storage.DataAccess;
+import com.graphhopper.storage.Directory;
+import static org.mockito.Mockito.*;
+
 public class KVStorageTest {
 
     private final static String location = "./target/edge-kv-storage";
@@ -308,6 +312,82 @@ public class KVStorageTest {
         KVStorage index = create();
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> index.add(createMap("mykey", new Object())));
         assertTrue(ex.getMessage().contains("The Class of a value was Object, currently supported"), ex.getMessage());
+    }
+
+    /**
+     * Test de la méthode isClosed() avec mocks de Directory et DataAccess.
+     *
+     * Mutations ciblées:
+     * - isClosed(): "vals.isClosed() && keys.isClosed()"
+     *   → mutation de && en ||
+     *   → mutation du retour true/false
+     *   → inversion de l'ordre d'évaluation
+     *
+     * Classes simulées:
+     * 1. Directory: pour injecter les DataAccess mockés
+     * 2. DataAccess (x2): pour contrôler les retours de isClosed()
+     *
+     * Justification:
+     * - Le mock de Directory permet d'injecter nos DataAccess mockés
+     * - Les mocks de DataAccess permettent de tester toutes les combinaisons
+     *   de isClosed() pour tuer la mutation && → ||
+     *
+     * Note: L'opérateur && utilise l'évaluation en court-circuit:
+     * si vals.isClosed() retourne false, keys.isClosed() n'est pas appelé
+     */
+    @Test
+    public void testIsClosedWithMockedDirectoryAndDataAccess() {
+        // === MOCK 1: Directory ===
+        Directory mockDirectory = mock(Directory.class);
+
+        // === MOCK 2: DataAccess (deux instances: keys et vals) ===
+        DataAccess mockKeys = mock(DataAccess.class);
+        DataAccess mockVals = mock(DataAccess.class);
+
+        // Configuration: Directory.create() retourne nos DataAccess mockés
+        when(mockDirectory.create("edgekv_keys", 10 * 1024)).thenReturn(mockKeys);
+        when(mockDirectory.create("edgekv_vals")).thenReturn(mockVals);
+
+        // Création du KVStorage avec le Directory mocké
+        KVStorage kvStorage = new KVStorage(mockDirectory, true);
+
+        // Vérification que Directory.create a été appelé correctement
+        verify(mockDirectory).create("edgekv_keys", 10 * 1024);
+        verify(mockDirectory).create("edgekv_vals");
+
+        // === Test 1: Les deux sont fermés → isClosed() = true ===
+        // Seul cas où le résultat est true
+        when(mockVals.isClosed()).thenReturn(true);
+        when(mockKeys.isClosed()).thenReturn(true);
+        assertTrue(kvStorage.isClosed(),
+                "isClosed() doit retourner true quand keys ET vals sont fermés");
+
+        // === Test 2: vals ouvert → isClosed() = false ===
+        // keys.isClosed() ne sera PAS appelé (court-circuit)
+        // Ce test tue la mutation && → || car avec ||, true serait retourné si keys est fermé
+        when(mockVals.isClosed()).thenReturn(false);
+        when(mockKeys.isClosed()).thenReturn(true);
+        assertFalse(kvStorage.isClosed(),
+                "isClosed() doit retourner false quand vals est ouvert (même si keys est fermé)");
+
+        // === Test 3: vals fermé, keys ouvert → isClosed() = false ===
+        // Ce test vérifie que keys.isClosed() EST appelé quand vals.isClosed() = true
+        when(mockVals.isClosed()).thenReturn(true);
+        when(mockKeys.isClosed()).thenReturn(false);
+        assertFalse(kvStorage.isClosed(),
+                "isClosed() doit retourner false quand keys est ouvert");
+
+        // === Test 4: Les deux sont ouverts → isClosed() = false ===
+        when(mockVals.isClosed()).thenReturn(false);
+        when(mockKeys.isClosed()).thenReturn(false);
+        assertFalse(kvStorage.isClosed(),
+                "isClosed() doit retourner false quand les deux sont ouverts");
+
+        // Vérification des appels aux mocks
+        // vals.isClosed() est appelé 4 fois (une fois par test)
+        // keys.isClosed() est appelé seulement 2 fois (tests 1 et 3, quand vals retourne true)
+        verify(mockVals, times(4)).isClosed();
+        verify(mockKeys, times(2)).isClosed();
     }
 
     @RepeatedTest(20)
