@@ -37,6 +37,9 @@ jobs:
       - name: Build ${{ matrix.java-version }}
         run: mvn -B clean test
 
+      - name: Install required module
+        run: mvn -pl graphhopper-web-api -am -DskipTests install  
+
       - name: Run PiTest
         working-directory: ./core
         run: mvn -B org.pitest:pitest-maven:mutationCoverage -DoutputFormats=XML,HTML
