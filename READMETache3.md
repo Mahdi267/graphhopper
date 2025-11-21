@@ -264,5 +264,25 @@ public void testIsClosedWithMocks() {
 Le test vérifie que `isClosed()` retourne true uniquement quand les deux DataAccess sont fermés. Les mocks de Directory et DataAccess permettent d'isoler complètement la logique de KVStorage et de tester toutes les combinaisons possibles pour tuer la mutation `&&` → `||`.
 
 ### Rickroll
+Pour apporter une touche d'humour dans le workflow GitHub Actions, nous avons ajouté un mécanisme qui déclenche un **Rickroll** lorsque les tests échouent ou que le score de mutation tombe en dessous du seuil de 70%.
 
+#### 1. Fonctionnement
+
+- Une action GitHub custom a été créée dans `.github/actions/rickroll` qui affiche un message et un lien vers la célèbre vidéo de Rick Astley.
+- Cette action est déclenchée uniquement si le job `build` échoue, grâce à `if: failure()` dans le job `rickroll` du workflow.
+
+#### 2. Test du Rickroll
+
+Pour tester le Rickroll, nous avons ajouté un test volontairement échoué dans la classe `SpatialKeyAlgoTest`.
+
+#### 3. Exemple d'un cas où un test échoue
+![Rickroll dans les logs](./Screenshot%202025-11-21%20180346.png)
+
+##### Code de test
+
+```java
+@Test
+public void testFailRickRoll() {
+    assertEquals(1+1, 1);
+}
 
