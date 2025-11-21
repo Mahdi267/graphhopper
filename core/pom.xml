@@ -182,14 +182,18 @@
                 <version>1.20.3</version>
                 <configuration>
                     <targetClasses>
-                        <param>com.graphhopper.coll.GHLongLongBTree</param>
-                        <param>com.graphhopper.isochrone.algorithm.ShortestPathTree</param>
-                        <param>com.graphhopper.util.shapes.BBox</param>
-                    </targetClasses>
+                    <param>com.graphhopper.coll.GHLongLongBTree</param>
+                    <param>com.graphhopper.isochrone.algorithm.ShortestPathTree</param>
+                    <param>com.graphhopper.util.shapes.BBox</param>
+                    <param>com.graphhopper.reader.dem.HeightTile</param>
+                    <param>com.graphhopper.search.KVStorage</param>
+                </targetClasses>
                     <targetTests>
                         <param>com.graphhopper.coll.GHLongLongBTreeTest</param>
                         <param>com.graphhopper.isochrone.algorithm.ShortestPathTreeTest</param>
                         <param>com.graphhopper.util.shapes.BBoxTest</param>
+                        <param>com.graphhopper.reader.dem.HeightTileTest</param>
+                        <param>com.graphhopper.search.KVStorageTest</param>
                     </targetTests>
                     <threads>4</threads>
                 </configuration>
