@@ -16,9 +16,9 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          java-version: 21       # recommandé pour PiTest
+          java-version: 24       
           distribution: temurin
-          cache: maven           # cache du repo Maven (~/.m2)
+          cache: maven          
 
       # ------------------------
       # Build léger (pas de clean)
