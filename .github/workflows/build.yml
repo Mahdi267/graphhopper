@@ -38,7 +38,7 @@ jobs:
         run: mvn -B clean test
 
       - name: Install required module
-        run: mvn -pl graphhopper-web-api -am -DskipTests install  
+        run: mvn -pl web-api -am -DskipTests install
 
       - name: Run PiTest
         working-directory: ./core
