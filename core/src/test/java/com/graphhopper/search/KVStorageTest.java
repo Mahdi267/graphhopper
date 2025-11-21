@@ -327,7 +327,7 @@ public class KVStorageTest {
      *   de isClosed()
      */
     @Test
-    public void testIsClosedWithMockedDirectoryAndDataAccess() {
+    public void testIsClosedWithMocks() {
         Directory mockDirectory = mock(Directory.class);
 
         DataAccess mockKeys = mock(DataAccess.class);
