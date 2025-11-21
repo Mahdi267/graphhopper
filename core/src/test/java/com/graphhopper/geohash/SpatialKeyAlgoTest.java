@@ -27,10 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author Peter Karich
  */
 public class SpatialKeyAlgoTest {
-    @Test
-    public void testFailRickRoll() {
-        assertEquals(1+1, 1);
-    }
+//    @Test
+//    public void testFailRickRoll() {
+//        assertEquals(1+1, 1);
+//    }
 
     @Test
     public void testEncode() {
