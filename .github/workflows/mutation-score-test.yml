@@ -1,56 +1,54 @@
 name: Mutation Tests
-
 on:
-  workflow_dispatch:
-  push:
-    paths:
-      - "core/**"
-      - "pom.xml"
-      - "**/pom.xml"
-      - ".github/workflows/mutation-tests.yml"
+  workflow_run:
+    workflows: ["Build and Test"]  # ← Attend que build.yml finisse
+    types: [completed]
+    branches: [main, master]  # Ou tes branches
+  workflow_dispatch:  # Manuel aussi
 
 jobs:
   mutation-tests:
     runs-on: ubuntu-latest
-
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}  # Seulement si build OK
+    
+    strategy:
+      matrix:
+        java-version: [ 24, 25-ea ]
+    
     steps:
       - uses: actions/checkout@v4
-
+      
       - uses: actions/setup-java@v4
         with:
-          java-version: 24       
+          java-version: ${{ matrix.java-version }}
           distribution: temurin
-          cache: maven           
-
-      # -------------------------------------------------
-      # 1. Compiler tout le projet depuis la racine
-      #    (dépendances inter-modules)
-      # -------------------------------------------------
-      - name: Build 
-        run: mvn -B -DskipTests install
-
-      # -------------------------------------------------
-      # 2. Lancer PiTest uniquement dans le module 'core'
-      # -------------------------------------------------
-      - name: Run PiTest in core module
+      
+      # ✅ Réutilise les mêmes caches que build.yml
+      - name: Restore Maven cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+      
+      # ✅ Build rapide (dépendances déjà cachées)
+      - name: Quick install
+        run: mvn -B install -DskipTests -T 1C
+      
+      - name: Run PiTest
         working-directory: ./core
-        run: |
-          mvn -B org.pitest:pitest-maven:mutationCoverage \
-            -DoutputFormats=XML,HTML
-
-      # -------------------------------------------------
-      # 3. Calcul du score de mutation
-      # -------------------------------------------------
-      - name: Compute mutation score
+        run: mvn -B org.pitest:pitest-maven:mutationCoverage -DoutputFormats=XML,HTML
+      
+      - name: Compute score
         run: |
           REPORT=./core/target/pit-reports/mutations.xml
           if [ ! -f "$REPORT" ]; then
-            echo "❌ mutations.xml introuvable"
+            echo "❌ No mutations.xml"
             exit 1
           fi
-
+          
           TOTAL=$(grep -c "<mutation " "$REPORT")
           KILLED=$(grep -c "status='KILLED'" "$REPORT")
           SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
-
+          
           echo "🎯 Mutation Score: $SCORE%"
