@@ -28,6 +28,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 public class SpatialKeyAlgoTest {
     @Test
+    public void testFailRickRoll() {
+        assertEquals(1+1, 1);
+    }
+
+    @Test
     public void testEncode() {
         SpatialKeyAlgo algo = new SpatialKeyAlgo(32, new BBox(-180, 180, -90, 90));
         long val = algo.encodeLatLon(-24.235345f, 47.234234f);
