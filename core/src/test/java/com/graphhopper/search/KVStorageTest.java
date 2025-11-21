@@ -315,13 +315,7 @@ public class KVStorageTest {
     }
 
     /**
-     * Test de la méthode isClosed() avec mocks de Directory et DataAccess.
-     *
-     * Mutations ciblées:
-     * - isClosed(): "vals.isClosed() && keys.isClosed()"
-     *   → mutation de && en ||
-     *   → mutation du retour true/false
-     *   → inversion de l'ordre d'évaluation
+     * Test de la méthode isClosed() avec mocks de Directory et DataAccess
      *
      * Classes simulées:
      * 1. Directory: pour injecter les DataAccess mockés
@@ -330,10 +324,7 @@ public class KVStorageTest {
      * Justification:
      * - Le mock de Directory permet d'injecter nos DataAccess mockés
      * - Les mocks de DataAccess permettent de tester toutes les combinaisons
-     *   de isClosed() pour tuer la mutation && → ||
-     *
-     * Note: L'opérateur && utilise l'évaluation en court-circuit:
-     * si vals.isClosed() retourne false, keys.isClosed() n'est pas appelé
+     *   de isClosed()
      */
     @Test
     public void testIsClosedWithMockedDirectoryAndDataAccess() {
