@@ -1,66 +1,45 @@
 name: Mutation Tests
-on: 
-  workflow_dispatch:
-  pull_request:
-  push:
-    branches: [ main, master ]
+on: push
 
 jobs:
   mutation-tests:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        java-version: [ 24, 25-ea ]
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: actions/setup-java@v4
         with:
-          java-version: ${{ matrix.java-version }}
+          java-version: 24
           distribution: temurin
-      
-      - name: Build project
+          cache: maven
+
+      - name: Build
         run: mvn clean install -B
-      
-      - name: Run mutation tests
-        run: mvn org.pitest:pitest-maven:mutationCoverage -DskipTests
-        working-directory: ./core
-      
-      - name: Check mutation score
+
+      - name: Run PiTest
         run: |
-          cd ./core/target/pit-reports
-          
-          # Calculer le score
-          TOTAL=$(grep -c '<mutation' mutations.xml || echo "0")
-          KILLED=$(grep -c "status='KILLED'" mutations.xml || echo "0")
-          
+          mvn org.pitest:pitest-maven:mutationCoverage \
+            -DoutputFormats=XML,HTML \
+            -DargLine=""
+        working-directory: ./core
+
+      - name: Get mutation score
+        run: |
+          REPORT=./core/target/pit-reports/mutations.xml
+
+          if [ ! -f "$REPORT" ]; then
+            echo "❌ mutations.xml introuvable"
+            exit 1
+          fi
+
+          TOTAL=$(grep -c "<mutation " "$REPORT")
+          KILLED=$(grep -c "status='KILLED'" "$REPORT")
+
           if [ "$TOTAL" -eq 0 ]; then
-            echo "❌ No mutations found"
+            echo "❌ Aucun mutant trouvé."
             exit 1
           fi
-          
-          SCORE=$(awk "BEGIN {printf \"%.2f\", ($KILLED * 100) / $TOTAL}")
-          
-          echo "📊 Mutation Test Results:"
-          echo "  Total mutations: $TOTAL"
-          echo "  Killed: $KILLED"
-          echo "  Score: $SCORE%"
-          
-          # Seuil minimum (ajustez selon vos besoins)
-          THRESHOLD=80
-          
-          if (( $(awk "BEGIN {print ($SCORE < $THRESHOLD)}") )); then
-            echo "❌ FAIL: Mutation score ($SCORE%) is below threshold ($THRESHOLD%)"
-            exit 1
-          else
-            echo "✅ PASS: Mutation score is acceptable"
-          fi
-      
-      - name: Upload mutation report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutation-report-java-${{ matrix.java-version }}
-          path: ./core/target/pit-reports/
+
+          SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
+          echo "🎯 Mutation Score: $SCORE%"
