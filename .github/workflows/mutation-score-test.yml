@@ -22,10 +22,10 @@ jobs:
           distribution: temurin
       
       - name: Build project
-        run: mvn -Dkey=$API_KEY clean install -B
+        run: mvn clean install -B
       
       - name: Run mutation tests
-        run: mvn -B org.pitest:pitest-maven:mutationCoverage -DskipTests
+        run: mvn org.pitest:pitest-maven:mutationCoverage  
         working-directory: ./core
       
       - name: Check mutation score
