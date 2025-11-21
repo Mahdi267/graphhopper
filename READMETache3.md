@@ -165,11 +165,103 @@ public void testAcceptWayWithValidWay() {
 
 Le test vérifie qu'une route valide (2+ nœuds, tags, acceptée) est bien acceptée. Les mocks servent à éviter les dépendances externes et avoir un test rapide.
 
-### Test : xyz()
+### Test : testIsClosedWithMocks()
 
-#### Classe testée 
+#### Classe testée
 
-SQUELETTE A COMPLETER
+On teste la méthode `isClosed()` de la classe `KVStorage`. C'est la classe qui gère le stockage clé-valeur pour les données des arêtes et des nœuds du graphe.
+
+`KVStorage` a été choisie pour être testée car c'est une classe fondamentale du système de stockage de GraphHopper. Elle gère la persistance des métadonnées associées aux éléments du graphe (noms de rues, attributs, etc.). La classe possède deux dépendances injectables clairement identifiées (`Directory` et `DataAccess`), ce qui la rend idéale pour le testing avec mocks. De plus, la méthode `isClosed()` contient un opérateur logique (`&&`) qui est une cible classique pour les mutations de PIT.
+
+#### Justification des classes mockées
+
+**Directory**
+
+Directory est la factory qui crée les instances de `DataAccess`. Dans le constructeur de `KVStorage`, elle est appelée pour créer deux DataAccess distincts : un pour les clés (`keys`) et un pour les valeurs (`vals`). En mockant Directory, on peut contrôler exactement quels DataAccess sont injectés dans KVStorage, permettant ainsi d'isoler complètement la logique de la classe testée sans dépendre du système de fichiers ou de la mémoire réelle.
+
+**DataAccess**
+
+DataAccess représente l'interface de stockage bas niveau. KVStorage utilise deux instances : `keys` pour stocker les métadonnées des clés et `vals` pour stocker les valeurs. En mockant ces deux instances, on peut :
+- Contrôler précisément les valeurs retournées par `isClosed()`
+- Tester toutes les combinaisons logiques sans avoir à créer de vrais fichiers
+- Vérifier que les deux DataAccess sont bien consultés par la méthode testée
+
+#### Configuration des mocks
+
+- `Directory.create("edgekv_keys", 10 * 1024)` retourne `mockKeys` : Simule la création du DataAccess pour les clés.
+- `Directory.create("edgekv_vals")` retourne `mockVals` : Simule la création du DataAccess pour les valeurs.
+- `mockKeys.isClosed()` et `mockVals.isClosed()` : Configurés pour retourner différentes combinaisons true/false.
+
+#### Valeurs de test
+
+- 4 combinaisons de `isClosed()` : (true,true), (false,true), (true,false), (false,false)
+- Permet de tuer la mutation `&&` → `||`
+
+#### Mutations ciblées
+
+**isClosed() :**
+```java
+return vals.isClosed() && keys.isClosed();
+```
+- Mutation `&&` → `||` : Tuée par les tests où un seul est fermé
+- Mutation `true` → `false` : Tuée par le test où les deux sont fermés
+
+#### Code
+
+```java
+@Test
+public void testIsClosedWithMocks() {
+    // === MOCK 1: Directory ===
+    Directory mockDirectory = mock(Directory.class);
+    
+    // === MOCK 2: DataAccess (deux instances: keys et vals) ===
+    DataAccess mockKeys = mock(DataAccess.class);
+    DataAccess mockVals = mock(DataAccess.class);
+    
+    // Configuration: Directory.create() retourne nos DataAccess mockés
+    when(mockDirectory.create("edgekv_keys", 10 * 1024)).thenReturn(mockKeys);
+    when(mockDirectory.create("edgekv_vals")).thenReturn(mockVals);
+    
+    // Création du KVStorage avec le Directory mocké
+    KVStorage kvStorage = new KVStorage(mockDirectory, true);
+    
+    // Vérification que Directory.create a été appelé correctement
+    verify(mockDirectory).create("edgekv_keys", 10 * 1024);
+    verify(mockDirectory).create("edgekv_vals");
+    
+    // Test 1: Les deux sont fermés → isClosed() = true
+    when(mockVals.isClosed()).thenReturn(true);
+    when(mockKeys.isClosed()).thenReturn(true);
+    assertTrue(kvStorage.isClosed(), 
+        "isClosed() doit retourner true quand keys ET vals sont fermés");
+    
+    // Test 2: vals ouvert → isClosed() = false (court-circuit)
+    when(mockVals.isClosed()).thenReturn(false);
+    when(mockKeys.isClosed()).thenReturn(true);
+    assertFalse(kvStorage.isClosed(), 
+        "isClosed() doit retourner false quand vals est ouvert");
+    
+    // Test 3: vals fermé, keys ouvert → isClosed() = false
+    when(mockVals.isClosed()).thenReturn(true);
+    when(mockKeys.isClosed()).thenReturn(false);
+    assertFalse(kvStorage.isClosed(), 
+        "isClosed() doit retourner false quand keys est ouvert");
+    
+    // Test 4: Les deux sont ouverts → isClosed() = false
+    when(mockVals.isClosed()).thenReturn(false);
+    when(mockKeys.isClosed()).thenReturn(false);
+    assertFalse(kvStorage.isClosed(), 
+        "isClosed() doit retourner false quand les deux sont ouverts");
+    
+    // Vérification des appels (court-circuit de &&)
+    verify(mockVals, times(4)).isClosed();
+    verify(mockKeys, times(2)).isClosed();
+}
+```
+
+#### Résumé
+
+Le test vérifie que `isClosed()` retourne true uniquement quand les deux DataAccess sont fermés. Les mocks de Directory et DataAccess permettent d'isoler complètement la logique de KVStorage et de tester toutes les combinaisons possibles pour tuer la mutation `&&` → `||`.
 
 ### Rickroll
 
