@@ -80,5 +80,11 @@ jobs:
             exit 1
           fi
 
-          echo "Mutation score OK (>= $THRESHOLD%)"  
-
+          echo "Mutation score OK (>= $THRESHOLD%)"
+  rickroll:
+    name: Rickroll on Failure
+    needs: build
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/rickroll
