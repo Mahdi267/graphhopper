@@ -192,6 +192,10 @@
                         <param>com.graphhopper.util.shapes.BBoxTest</param>
                     </targetTests>
                     <threads>4</threads>
+                    <outputFormats>
+                        <outputFormat>XML</outputFormat>
+                        <outputFormat>HTML</outputFormat>
+                    </outputFormats>
                 </configuration>
                 <dependencies>
                     <dependency>
