@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - "core/**"
+      - "pom.xml"
+      - "**/pom.xml"
       - ".github/workflows/mutation-tests.yml"
 
 jobs:
@@ -18,27 +20,27 @@ jobs:
         with:
           java-version: 24       
           distribution: temurin
-          cache: maven          
+          cache: maven           
 
-      # ------------------------
-      # Build léger (pas de clean)
-      # ------------------------
-      - name: Build (fast incremental)
-        working-directory: ./core
-        run: mvn -B -DskipTests package
+      # -------------------------------------------------
+      # 1. Compiler tout le projet depuis la racine
+      #    (dépendances inter-modules)
+      # -------------------------------------------------
+      - name: Build 
+        run: mvn -B -DskipTests install
 
-      # ------------------------
-      # PiTest
-      # ------------------------
-      - name: Run PiTest
+      # -------------------------------------------------
+      # 2. Lancer PiTest uniquement dans le module 'core'
+      # -------------------------------------------------
+      - name: Run PiTest in core module
         working-directory: ./core
         run: |
           mvn -B org.pitest:pitest-maven:mutationCoverage \
             -DoutputFormats=XML,HTML
 
-      # ------------------------
-      # Score de mutation
-      # ------------------------
+      # -------------------------------------------------
+      # 3. Calcul du score de mutation
+      # -------------------------------------------------
       - name: Compute mutation score
         run: |
           REPORT=./core/target/pit-reports/mutations.xml
@@ -50,5 +52,5 @@ jobs:
           TOTAL=$(grep -c "<mutation " "$REPORT")
           KILLED=$(grep -c "status='KILLED'" "$REPORT")
           SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
-          
+
           echo "🎯 Mutation Score: $SCORE%"
