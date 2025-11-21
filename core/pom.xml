@@ -25,6 +25,7 @@
         -->
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
         <builddate>${maven.build.timestamp}</builddate>
+        <argLine></argLine>
     </properties>
     <licenses>
         <license>
@@ -196,6 +197,10 @@
                         <param>com.graphhopper.search.KVStorageTest</param>
                     </targetTests>
                     <threads>4</threads>
+                    <outputFormats>
+                        <outputFormat>XML</outputFormat>
+                        <outputFormat>HTML</outputFormat>
+                    </outputFormats>
                 </configuration>
                 <dependencies>
                     <dependency>

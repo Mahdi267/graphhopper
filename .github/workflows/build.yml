@@ -37,3 +37,48 @@ jobs:
       - name: Build ${{ matrix.java-version }}
         run: mvn -B clean test
 
+      - name: Install required module
+        run: mvn -pl web-api -am -DskipTests install
+
+      - name: Run PiTest
+        working-directory: ./core
+        run: mvn -B org.pitest:pitest-maven:mutationCoverage -DoutputFormats=XML,HTML
+
+      - name: Calculate mutation score
+        id: mutation_score
+        run: |
+          REPORT=./core/target/pit-reports/mutations.xml
+
+          if [ ! -f "$REPORT" ]; then
+            echo "Mutation report not found. Score = 0%"
+            echo "score=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          TOTAL=$(grep -c "<mutation " "$REPORT" || echo "0")
+          KILLED=$(grep -c "status='KILLED'" "$REPORT" || echo "0")
+
+          if [ "$TOTAL" -gt 0 ]; then
+            SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
+          else
+            SCORE="0"
+          fi
+
+          echo "Mutation Score: $SCORE%"
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+
+      - name: FAIL if mutation score < 70%
+        run: |
+          SCORE="${{ steps.mutation_score.outputs.score }}"
+          THRESHOLD=70
+
+          echo "Current mutation score: $SCORE%"
+          echo "Required minimum: $THRESHOLD%"
+
+          if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+            echo "BUILD FAILED: Mutation score ($SCORE%) is below threshold ($THRESHOLD%)"
+            exit 1
+          fi
+
+          echo "Mutation score OK (>= $THRESHOLD%)"  
+
