@@ -50,6 +50,7 @@ jobs:
           REPORT=./core/target/pit-reports/mutations.xml
 
           if [ ! -f "$REPORT" ]; then
+            echo "Mutation report not found. Score = 0%"
             echo "score=0" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -63,40 +64,21 @@ jobs:
             SCORE="0"
           fi
 
-          echo " Mutation Score: $SCORE%"
+          echo "Mutation Score: $SCORE%"
           echo "score=$SCORE" >> $GITHUB_OUTPUT
 
-      - name: Download previous score
-        uses: actions/download-artifact@v4
-        with:
-          name: mutation-score-java-${{ matrix.java-version }}
-          path: previous-score
-        continue-on-error: true
-
-      - name: Check mutation score - FAIL if decreased
+      - name: FAIL if mutation score < 70%
         run: |
-          CURRENT="${{ steps.mutation_score.outputs.score }}"
+          SCORE="${{ steps.mutation_score.outputs.score }}"
+          THRESHOLD=70
 
-          if [ -f previous-score/score.txt ]; then
-            PREVIOUS=$(cat previous-score/score.txt)
-            echo "Previous: $PREVIOUS% | Current: $CURRENT%"
+          echo "Current mutation score: $SCORE%"
+          echo "Required minimum: $THRESHOLD%"
 
-            if (( $(echo "$CURRENT < $PREVIOUS" | bc -l) )); then
-              echo " BUILD FAILED: Mutation score decreased from $PREVIOUS% to $CURRENT%"
-              exit 1
-            fi
+          if (( $(echo "$SCORE < $THRESHOLD" | bc -l) )); then
+            echo "BUILD FAILED: Mutation score ($SCORE%) is below threshold ($THRESHOLD%)"
+            exit 1
           fi
 
-      - name: Save mutation score
-        if: success()
-        run: |
-          mkdir -p mutation-score
-          echo "${{ steps.mutation_score.outputs.score }}" > mutation-score/score.txt
-
-      - name: Upload mutation score
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutation-score-java-${{ matrix.java-version }}
-          path: mutation-score/score.txt
+          echo "Mutation score OK (>= $THRESHOLD%)"
 
