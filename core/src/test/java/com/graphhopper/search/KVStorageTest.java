@@ -337,55 +337,43 @@ public class KVStorageTest {
      */
     @Test
     public void testIsClosedWithMockedDirectoryAndDataAccess() {
-        // === MOCK 1: Directory ===
         Directory mockDirectory = mock(Directory.class);
 
-        // === MOCK 2: DataAccess (deux instances: keys et vals) ===
         DataAccess mockKeys = mock(DataAccess.class);
         DataAccess mockVals = mock(DataAccess.class);
 
-        // Configuration: Directory.create() retourne nos DataAccess mockés
         when(mockDirectory.create("edgekv_keys", 10 * 1024)).thenReturn(mockKeys);
         when(mockDirectory.create("edgekv_vals")).thenReturn(mockVals);
 
-        // Création du KVStorage avec le Directory mocké
         KVStorage kvStorage = new KVStorage(mockDirectory, true);
 
-        // Vérification que Directory.create a été appelé correctement
         verify(mockDirectory).create("edgekv_keys", 10 * 1024);
         verify(mockDirectory).create("edgekv_vals");
 
-        // === Test 1: Les deux sont fermés → isClosed() = true ===
-        // Seul cas où le résultat est true
+        // Test 1: Les deux sont fermés → isClosed() = true
         when(mockVals.isClosed()).thenReturn(true);
         when(mockKeys.isClosed()).thenReturn(true);
         assertTrue(kvStorage.isClosed(),
                 "isClosed() doit retourner true quand keys ET vals sont fermés");
 
-        // === Test 2: vals ouvert → isClosed() = false ===
-        // keys.isClosed() ne sera PAS appelé (court-circuit)
-        // Ce test tue la mutation && → || car avec ||, true serait retourné si keys est fermé
+        // Test 2: vals ouvert → isClosed() = false
         when(mockVals.isClosed()).thenReturn(false);
         when(mockKeys.isClosed()).thenReturn(true);
         assertFalse(kvStorage.isClosed(),
                 "isClosed() doit retourner false quand vals est ouvert (même si keys est fermé)");
 
-        // === Test 3: vals fermé, keys ouvert → isClosed() = false ===
-        // Ce test vérifie que keys.isClosed() EST appelé quand vals.isClosed() = true
+        // Test 3: vals fermé, keys ouvert → isClosed() = false
         when(mockVals.isClosed()).thenReturn(true);
         when(mockKeys.isClosed()).thenReturn(false);
         assertFalse(kvStorage.isClosed(),
                 "isClosed() doit retourner false quand keys est ouvert");
 
-        // === Test 4: Les deux sont ouverts → isClosed() = false ===
+        // === Test 4: Les deux sont ouverts → isClosed() = false
         when(mockVals.isClosed()).thenReturn(false);
         when(mockKeys.isClosed()).thenReturn(false);
         assertFalse(kvStorage.isClosed(),
                 "isClosed() doit retourner false quand les deux sont ouverts");
 
-        // Vérification des appels aux mocks
-        // vals.isClosed() est appelé 4 fois (une fois par test)
-        // keys.isClosed() est appelé seulement 2 fois (tests 1 et 3, quand vals retourne true)
         verify(mockVals, times(4)).isClosed();
         verify(mockKeys, times(2)).isClosed();
     }
