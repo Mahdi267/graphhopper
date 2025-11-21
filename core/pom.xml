@@ -25,6 +25,7 @@
         -->
         <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
         <builddate>${maven.build.timestamp}</builddate>
+        <argLine></argLine>
     </properties>
     <licenses>
         <license>
@@ -119,6 +120,18 @@
             <artifactId>logback-classic</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.github.javafaker</groupId>
+            <artifactId>javafaker</artifactId>
+            <version>1.0.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.19.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -163,6 +176,35 @@
                     <failOnNoGitDirectory>false</failOnNoGitDirectory>
                     <failOnUnableToExtractRepoInfo>false</failOnUnableToExtractRepoInfo>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <version>1.20.3</version>
+                <configuration>
+                    <targetClasses>
+                        <param>com.graphhopper.coll.GHLongLongBTree</param>
+                        <param>com.graphhopper.isochrone.algorithm.ShortestPathTree</param>
+                        <param>com.graphhopper.util.shapes.BBox</param>
+                    </targetClasses>
+                    <targetTests>
+                        <param>com.graphhopper.coll.GHLongLongBTreeTest</param>
+                        <param>com.graphhopper.isochrone.algorithm.ShortestPathTreeTest</param>
+                        <param>com.graphhopper.util.shapes.BBoxTest</param>
+                    </targetTests>
+                    <threads>4</threads>
+                    <outputFormats>
+                        <outputFormat>XML</outputFormat>
+                        <outputFormat>HTML</outputFormat>
+                    </outputFormats>
+                </configuration>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.pitest</groupId>
+                        <artifactId>pitest-junit5-plugin</artifactId>
+                        <version>1.2.1</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
 
