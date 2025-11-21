@@ -1,6 +1,10 @@
 name: Mutation Tests
 on: 
   workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main, master ]
+
 jobs:
   mutation-tests:
     runs-on: ubuntu-latest
@@ -8,6 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         java-version: [ 24, 25-ea ]
+    
     steps:
       - uses: actions/checkout@v4
       
@@ -19,67 +24,43 @@ jobs:
       - name: Build project
         run: mvn -Dkey=$API_KEY clean install -B
       
-      - name: Run mutation tests on core repository
-        run: mvn -B org.pitest:pitest-maven:mutationCoverage -DskipTests || true
+      - name: Run mutation tests
+        run: mvn -B org.pitest:pitest-maven:mutationCoverage -DskipTests
         working-directory: ./core
       
-      - name: Extract mutation score
-        id: extract_score
+      - name: Check mutation score
         run: |
           cd ./core/target/pit-reports
           
-          # Afficher le contenu pour debug
-          echo "Files:"
-          ls -la
-          echo "XML content (first 30 lines):"
-          head -30 mutations.xml
-          
           # Calculer le score
-          TOTAL=$(grep -c '<mutation' mutations.xml)
-          KILLED=$(grep -c "status='KILLED'" mutations.xml)
-          SCORE=$(echo "scale=2; ($KILLED * 100) / $TOTAL" | bc)
+          TOTAL=$(grep -c '<mutation' mutations.xml || echo "0")
+          KILLED=$(grep -c "status='KILLED'" mutations.xml || echo "0")
           
-          echo "Score: $SCORE%"
-          echo "mutation_score=$SCORE" >> $GITHUB_OUTPUT
-      
-      - name: Upload reports for debug
-        uses: actions/upload-artifact@v4
-        with:
-          name: pit-reports-java-${{ matrix.java-version }}
-          path: ./core/target/pit-reports/
-      
-      - name: Download previous mutation score
-        id: download_score
-        uses: actions/download-artifact@v4
-        with:
-          name: mutation-score-java-${{ matrix.java-version }}
-          path: previous-score
-        continue-on-error: true
-      
-      - name: Compare mutation scores
-        run: |
-          CURRENT_SCORE="${{ steps.extract_score.outputs.mutation_score }}"
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "❌ No mutations found"
+            exit 1
+          fi
           
-          if [ -f previous-score/score.txt ]; then
-            PREVIOUS_SCORE=$(cat previous-score/score.txt)
-            echo "Previous score: $PREVIOUS_SCORE"
-            echo "Current score: $CURRENT_SCORE"
-            
-            if (( $(echo "$CURRENT_SCORE < $PREVIOUS_SCORE" | bc -l) )); then
-              echo "ERROR: Mutation score decreased from $PREVIOUS_SCORE to $CURRENT_SCORE"
-              exit 1
-            fi
+          SCORE=$(awk "BEGIN {printf \"%.2f\", ($KILLED * 100) / $TOTAL}")
+          
+          echo "📊 Mutation Test Results:"
+          echo "  Total mutations: $TOTAL"
+          echo "  Killed: $KILLED"
+          echo "  Score: $SCORE%"
+          
+          # Seuil minimum (ajustez selon vos besoins)
+          THRESHOLD=80
+          
+          if (( $(awk "BEGIN {print ($SCORE < $THRESHOLD)}") )); then
+            echo "❌ FAIL: Mutation score ($SCORE%) is below threshold ($THRESHOLD%)"
+            exit 1
           else
-            echo "No previous score found, storing current score"
+            echo "✅ PASS: Mutation score is acceptable"
           fi
       
-      - name: Save mutation score
-        run: |
-          mkdir -p mutation-score-artifact
-          echo "${{ steps.extract_score.outputs.mutation_score }}" > mutation-score-artifact/score.txt
-      
-      - name: Upload mutation score artifact
+      - name: Upload mutation report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-score-java-${{ matrix.java-version }}
-          path: mutation-score-artifact/score.txt
+          name: mutation-report-java-${{ matrix.java-version }}
+          path: ./core/target/pit-reports/
